@@ -1,20 +1,19 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { PrismaClient } from '@prisma/client'
-import { StartedPostgreSqlContainer } from '@testcontainers/postgresql'
-import { setupDatabase, teardownDatabase } from './setup'
+import { setupDatabase } from './setup'
 
 describe('Post Advanced Integration Tests - Suite 5', () => {
-  let prisma: PrismaClient
-  let container: StartedPostgreSqlContainer
+  let prisma: PrismaClient;
+  let setup: Awaited<ReturnType<typeof setupDatabase>>
 
   beforeAll(async () => {
-    const setup = await setupDatabase()
-    prisma = setup.prisma
-    container = setup.container
+    setup = await setupDatabase()
+    prisma = new PrismaClient();
+    await prisma.$connect();
   })
 
   afterAll(async () => {
-    await teardownDatabase(prisma, container)
+    await setup.stopContainer()
   })
 
   it('should filter published posts', async () => {
@@ -70,14 +69,18 @@ describe('Post Advanced Integration Tests - Suite 5', () => {
       data: {
         email: 'postadv3@example.com',
         name: 'Post Adv User 3',
-        posts: {
-          create: [
-            { title: 'First', content: 'Content' },
-            { title: 'Second', content: 'Content' },
-            { title: 'Third', content: 'Content' },
-          ],
-        },
       },
+    })
+
+    // Create posts sequentially to ensure createdAt order
+    await prisma.post.create({
+      data: { title: 'First', content: 'Content', authorId: user.id },
+    })
+    await prisma.post.create({
+      data: { title: 'Second', content: 'Content', authorId: user.id },
+    })
+    await prisma.post.create({
+      data: { title: 'Third', content: 'Content', authorId: user.id },
     })
 
     const posts = await prisma.post.findMany({

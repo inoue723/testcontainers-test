@@ -1,15 +1,10 @@
-import { PostgreSqlContainer, StartedPostgreSqlContainer } from '@testcontainers/postgresql'
-import { PrismaClient } from '@prisma/client'
+import { PostgreSqlContainer } from '@testcontainers/postgresql'
 import { execSync } from 'child_process'
-
-let container: StartedPostgreSqlContainer
-let prisma: PrismaClient
 
 export async function setupDatabase() {
   // PostgreSQLコンテナを起動
-  container = await new PostgreSqlContainer('postgres:16-alpine')
-    .withExposedPorts(5432)
-    .start()
+  const container = await new PostgreSqlContainer('postgres:16-alpine').start()
+  console.log("Database container started", container.getConnectionUri(), container.getPort());
 
   const connectionString = container.getConnectionUri()
 
@@ -17,26 +12,14 @@ export async function setupDatabase() {
   process.env.DATABASE_URL = connectionString
 
   // Prismaマイグレーションを実行
-  execSync('npx prisma migrate deploy', {
+  execSync('npx prisma db push', {
     env: { ...process.env, DATABASE_URL: connectionString },
     stdio: 'inherit',
   })
 
-  // PrismaClientを初期化
-  prisma = new PrismaClient({
-    datasources: {
-      db: {
-        url: connectionString,
-      },
-    },
-  })
+  const stopContainer = async () => {
+    await container.stop()
+  }
 
-  await prisma.$connect()
-
-  return { container, prisma, connectionString }
-}
-
-export async function teardownDatabase(prisma: PrismaClient, container: StartedPostgreSqlContainer) {
-  await prisma.$disconnect()
-  await container.stop()
+  return { container, connectionString, stopContainer }
 }

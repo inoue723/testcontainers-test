@@ -6,5 +6,6 @@ export default defineConfig({
     globals: true,
     watch: false,
     maxWorkers: 5,
+    hookTimeout: 60000,
   },
 })

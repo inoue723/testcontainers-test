@@ -1,20 +1,19 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { PrismaClient } from '@prisma/client'
-import { StartedPostgreSqlContainer } from '@testcontainers/postgresql'
-import { setupDatabase, teardownDatabase } from './setup'
+import { setupDatabase } from './setup'
 
 describe('User Advanced Integration Tests - Suite 4', () => {
-  let prisma: PrismaClient
-  let container: StartedPostgreSqlContainer
+  let prisma: PrismaClient;
+  let setup: Awaited<ReturnType<typeof setupDatabase>>
 
   beforeAll(async () => {
-    const setup = await setupDatabase()
-    prisma = setup.prisma
-    container = setup.container
+    setup = await setupDatabase()
+    prisma = new PrismaClient();
+    await prisma.$connect();
   })
 
   afterAll(async () => {
-    await teardownDatabase(prisma, container)
+    await setup.stopContainer()
   })
 
   it('should list all users', async () => {
