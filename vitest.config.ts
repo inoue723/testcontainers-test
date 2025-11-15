@@ -5,7 +5,6 @@ export default defineConfig({
     include: ['tests/**/*.integration.test.ts'],
     globals: true,
     watch: false,
-    maxWorkers: 5,
     hookTimeout: 60000,
   },
 })

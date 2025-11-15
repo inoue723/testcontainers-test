@@ -4,7 +4,7 @@ import { execSync } from 'child_process'
 export async function setupDatabase() {
   // PostgreSQLコンテナを起動
   const container = await new PostgreSqlContainer('postgres:16-alpine').start()
-  console.log("Database container started", container.getConnectionUri(), container.getPort());
+  console.log("Database container started", container.getConnectionUri());
 
   const connectionString = container.getConnectionUri()
 
