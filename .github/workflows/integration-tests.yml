@@ -1,0 +1,107 @@
+name: Integration Tests (5 Parallel)
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      # 失敗しても他のジョブを続行
+      fail-fast: false
+      matrix:
+        # 5並列で実行するための設定
+        shard: [1, 2, 3, 4, 5]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.22.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Generate Prisma Client
+        run: pnpm db:generate
+
+      - name: Create Prisma migration
+        run: |
+          mkdir -p prisma/migrations/init
+          cat > prisma/migrations/init/migration.sql << 'EOF'
+          -- CreateTable
+          CREATE TABLE "User" (
+              "id" SERIAL NOT NULL,
+              "email" TEXT NOT NULL,
+              "name" TEXT,
+              "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              "updatedAt" TIMESTAMP(3) NOT NULL,
+
+              CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+          );
+
+          -- CreateTable
+          CREATE TABLE "Post" (
+              "id" SERIAL NOT NULL,
+              "title" TEXT NOT NULL,
+              "content" TEXT,
+              "published" BOOLEAN NOT NULL DEFAULT false,
+              "authorId" INTEGER NOT NULL,
+              "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              "updatedAt" TIMESTAMP(3) NOT NULL,
+
+              CONSTRAINT "Post_pkey" PRIMARY KEY ("id")
+          );
+
+          -- CreateIndex
+          CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
+
+          -- AddForeignKey
+          ALTER TABLE "Post" ADD CONSTRAINT "Post_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+          EOF
+
+      - name: Run integration tests (Shard ${{ matrix.shard }}/5)
+        run: pnpm test:integration --shard=${{ matrix.shard }}/5
+        env:
+          CI: true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.shard }}
+          path: |
+            coverage/
+            test-results/
+          retention-days: 7
+
+  # すべてのシャードが完了したことを確認するジョブ
+  integration-test-summary:
+    name: Integration Test Summary
+    runs-on: ubuntu-latest
+    needs: integration-test
+    if: always()
+
+    steps:
+      - name: Check test results
+        run: |
+          if [ "${{ needs.integration-test.result }}" != "success" ]; then
+            echo "Some integration tests failed"
+            exit 1
+          fi
+          echo "All integration tests passed successfully!"
